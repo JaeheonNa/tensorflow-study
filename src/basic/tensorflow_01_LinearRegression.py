@@ -22,9 +22,10 @@ def mse_loss(y_pred, y_actual):
     return tf.reduce_mean(tf.square(y_pred - y_actual))
 
 # 3. 최적화
-#   SGD(Stochastic Gradient Descent): 최적화 알고리즘을 갖고 있는 클래스 중 하나.
-#   Mini-Batch Gradient Descent를 수행해주는 가장 기본적인 옵티마이저.
-#   전체 데이터 세트 대신 무작위로 선택된 하나의 데이터 샘플 또는 작은 배치(Mini-Batch)를 사용해 매개변수를 업데이트하는 방식.
+#   SGD: 최적화 알고리즘을 갖고 있는 클래스 중 하나. Mini-Batch Gradient Descent를 수행해주는 가장 기본적인 옵티마이저.
+#       Batch Gradient Descent: '전체 데이터 세트'를 사용해 매개변수를 한 번에 업데이트하는 방식. 단, 데이터가 클 수록 최적의 매개변수를 찾는데 오래 걸림.
+#       Stochastic Gradient Descent: 전체 데이터 세트 대신 무작위로 선택된 '하나의 데이터 샘플'을 사용해 매개변수를 자주 업데이트하는 방식. 단, 부정확한 방향으로 업데이트 될 수도 있음.
+#       Mini-Batch Gradient Descent: BGD와 SGD의 절충. 전체 데이터 M개를 N개씩 묶은은 Mini-Batch 수만큼 매개변수를 업데이트함.
 #   Adam, RMSprop 옵티마이저의 경우 부분 최적화 문제를 어느 정도 해결할 수 있는, 조금 더 발전된 옵티마이저임.
 optimizer = tf.optimizers.SGD(learning_rate=0.01)
 
