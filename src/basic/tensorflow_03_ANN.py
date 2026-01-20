@@ -30,7 +30,7 @@ hidden2_size = 256  # 인공신경망의 은닉층 노드 크기
 output_size = 10    # 인공신경망의 출력층 노드 크기
 
 # 3. 학습 데이터 준비
-#   (x, y) 형태의 튜플 생성
+#   (x, y) 형태의 데이터셋 튜플 생성
 train_data = tf.data.Dataset.from_tensor_slices((x_train, y_train))
 #   한 번의 epoch이 끝날 때마다 60000개 데이터를 섞은 후 batch size로 나눔.
 train_data = train_data.shuffle(60000).batch(batch_size)
@@ -38,7 +38,7 @@ train_data = train_data.shuffle(60000).batch(batch_size)
 # 4. W, b 초기화 함수 정의
 #   어떤 방법으로 가중치 W와 편향 b를 초기화할지 정하는 함수.
 #   평균 0, 편차 1을 갖는 가우스 분포에서 랜덤으로 뽑아 W, b를 초기화 함.
-def random_normal_initializer_sith_stddev_1():
+def random_normal_initializer_with_stddev_1():
     return tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0, seed=None)
 
 # 5. ANN 모델 정의
@@ -47,16 +47,16 @@ class ANN(tf.keras.Model):
         super(ANN, self).__init__()
         self.hidden_layer_1 = tf.keras.layers.Dense(hidden1_size,
                                                     activation='relu',
-                                                    kernel_initializer=random_normal_initializer_sith_stddev_1(),
-                                                    bias_initializer=random_normal_initializer_sith_stddev_1())
+                                                    kernel_initializer=random_normal_initializer_with_stddev_1(),
+                                                    bias_initializer=random_normal_initializer_with_stddev_1())
         self.hidden_layer_2 = tf.keras.layers.Dense(hidden2_size,
                                                     activation='relu',
-                                                    kernel_initializer=random_normal_initializer_sith_stddev_1(),
-                                                    bias_initializer=random_normal_initializer_sith_stddev_1())
+                                                    kernel_initializer=random_normal_initializer_with_stddev_1(),
+                                                    bias_initializer=random_normal_initializer_with_stddev_1())
         self.output_layer = tf.keras.layers.Dense(output_size,
                                                     activation=None,
-                                                    kernel_initializer=random_normal_initializer_sith_stddev_1(),
-                                                    bias_initializer=random_normal_initializer_sith_stddev_1())
+                                                    kernel_initializer=random_normal_initializer_with_stddev_1(),
+                                                    bias_initializer=random_normal_initializer_with_stddev_1())
 
     def call(self, x):
         H1_output = self.hidden_layer_1(x)
@@ -78,7 +78,7 @@ optimizer = tf.optimizers.Adam(learning_rate=learning_rate)
 @tf.function
 def train_step(model, x, y_actual):
     with tf.GradientTape() as tape:
-        y_pred = model(x)
+        y_pred = model.call(x)
         loss = cross_entropy_loss(y_pred, y_actual)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
