@@ -26,7 +26,7 @@ x_train, x_test = x_train.reshape([-1, 784]), x_test.reshape([-1, 784])
 x_train, x_test = x_train / 255.0, x_test / 255.0
 
 # 2. 학습에 필요한 설정값 정의
-learning_rate = 0.02
+learning_rate = 0.04
 training_epochs = 50
 batch_size = 256
 display_step = 1
