@@ -33,7 +33,7 @@ output_size = 10    # 인공신경망의 출력층 노드 크기
 #   (x, y) 형태의 데이터셋 튜플 생성
 train_data = tf.data.Dataset.from_tensor_slices((x_train, y_train))
 #   한 번의 epoch이 끝날 때마다 60000개 데이터를 섞은 후 batch size로 나눔.
-train_data = train_data.shuffle(60000).batch(batch_size)
+train_data = train_data.repeat().shuffle(60000).batch(batch_size)
 
 # 4. W, b 초기화 함수 정의
 #   어떤 방법으로 가중치 W와 편향 b를 초기화할지 정하는 함수.
