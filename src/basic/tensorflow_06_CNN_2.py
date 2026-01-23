@@ -26,7 +26,7 @@ train_data = train_data.repeat().shuffle(50000).batch(128)
 train_data_iter = iter(train_data)
 
 test_data = tf.data.Dataset.from_tensor_slices((x_test, y_test_one_hot))
-train_data = test_data.batch(1000)
+test_data = test_data.batch(1000)
 test_data_iter = iter(test_data)
 
 # 3. CNN 모델 정의
@@ -109,6 +109,7 @@ for i in range(10000):
 test_accuracy = 0.0
 for i in range(10):
     test_batch_x, test_batch_y = next(test_data_iter)
-    test_accuracy += compute_accuracy(CNN_model.call(test_batch_x, False), test_batch_y).numpy()
+    pred_batch_y, logits = CNN_model.call(test_batch_x, False)
+    test_accuracy += compute_accuracy(pred_batch_y, test_batch_y).numpy()
 test_accuracy /= 10
 print("정확도(Accuracy): %f" % test_accuracy)
