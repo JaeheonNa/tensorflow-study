@@ -112,4 +112,4 @@ for i in range(10):
     pred_batch_y, logits = CNN_model.call(test_batch_x, False)
     test_accuracy += compute_accuracy(pred_batch_y, test_batch_y).numpy()
 test_accuracy /= 10
-print("정확도(Accuracy): %f" % test_accuracy)
+print("정확도(Accuracy): %f" % test_accuracy) # 정확도(Accuracy): 0.713500
