@@ -33,3 +33,36 @@
 #   Char-RNN의 경우는 그 단위가 '단어'가 아니라 '문자'가 됨.
 #   알파벳 자모 26개에 대한 One-hot Encoding 데이터에 대해 임베딩을 수행한 후 RNN 모델에 투입,
 #   뽑아낸 데이터에 대해서 argmax를 통해 '그 다음에 올 확률이 가장 높은 문자'의 One-hot Encoding 데이터에 대해 다시 임베딩을 수행한 후 RNN 모델에 투입,, 반복하는 방식.
+
+
+# python2와  호환성을 맞추기 위한 모듈...?
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+# google에서 만든 라이브러리로, tensorflow 2.0과 자주 묶여서 사용됨.
+from absl import app
+import tensorflow as tf
+
+import numpy as np
+import os
+import time
+
+# input data와 input data를 한 글자씩 뒤로 민 target data를 생성하는 utility 함수 정의.
+def split_input_target(chunk):
+    input_text = chunk[:-1] # 원본 input text
+    target_text = chunk[1:] # 하나씩 뒤로 민 text
+    return input_text, target_text
+
+# 학습에 사용될 설정값 정의
+data_dir = tf.keras.utils.get_file('shakespeare.txt', 'https://storage.googleapis.com/download.tensorflow.org/data/shakespeare.txt')
+batch_size = 64
+seq_length = 100 # RNN은 시계열 데이터를 다루기 때문에 기존에 사용하던 데이터와 비교해 '시간'이라는 차원이 하나 더 추가됨. 몇 개의 글자를 하나의 시계열로 볼 것인가?
+embedding_dim = 256
+hidden_size = 1024
+num_epochs = 10
+
+# 학습에 사용할 txt load
+text = open(data_dir, 'rb').read().decode('utf-8')
+voca = sorted(set(text)) # character 들을 뽑아서 집합으로 생성.
+voca_size = len(voca)
+char2idx = { c : i for i, c in enumerate(voca) }
+idx2char = np.array(voca)
