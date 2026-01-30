@@ -4,3 +4,4 @@ include
 lib
 *.cfg
 *.png
+*.weights.h5
