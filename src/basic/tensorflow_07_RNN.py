@@ -35,9 +35,6 @@
 #   뽑아낸 데이터에 대해서 argmax를 통해 '그 다음에 올 확률이 가장 높은 문자'의 One-hot Encoding 데이터에 대해 다시 임베딩을 수행한 후 RNN 모델에 투입,, 반복하는 방식.
 
 
-# python2와  호환성을 맞추기 위한 모듈...?
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 # google에서 만든 라이브러리로, tensorflow 2.0과 자주 묶여서 사용됨.
 from absl import app
 import tensorflow as tf
@@ -48,6 +45,7 @@ import time
 
 # input data와 input data를 한 글자씩 뒤로 민 target data를 생성하는 utility 함수 정의.
 def split_input_target(chunk):
+    # ex) "Hello -> input_text = "Hell", target_text = "ello"
     input_text = chunk[:-1] # 원본 input text
     target_text = chunk[1:] # 하나씩 뒤로 민 text
     return input_text, target_text
@@ -55,14 +53,128 @@ def split_input_target(chunk):
 # 학습에 사용될 설정값 정의
 data_dir = tf.keras.utils.get_file('shakespeare.txt', 'https://storage.googleapis.com/download.tensorflow.org/data/shakespeare.txt')
 batch_size = 64
-seq_length = 100 # RNN은 시계열 데이터를 다루기 때문에 기존에 사용하던 데이터와 비교해 '시간'이라는 차원이 하나 더 추가됨. 몇 개의 글자를 하나의 시계열로 볼 것인가?
+seq_length = 100 # RNN에게 한 번에 보여줄 문장의 길이. 너무 길면 학습이 어렵고, 너무 짧으면 문맥 파악을 못 함. 여기서는 100글자를 보고 101번째를 맞추게 하겠다는 뜻.
 embedding_dim = 256
 hidden_size = 1024
 num_epochs = 10
 
 # 학습에 사용할 txt load
 text = open(data_dir, 'rb').read().decode('utf-8')
-voca = sorted(set(text)) # character 들을 뽑아서 집합으로 생성.
+# character 들을 뽑아서 집합으로 생성.
+voca = sorted(set(text))
 voca_size = len(voca)
 char2idx = { c : i for i, c in enumerate(voca) }
 idx2char = np.array(voca)
+
+# 텍스트의 char를 Integer로 치환 후 배치 단위로 데이터 세트를 생성.
+text_as_int = np.array([char2idx[c] for c in text])
+# 숫자 리스트를 '스트림(Stream)' 형태로 변경
+char_dataset = tf.data.Dataset.from_tensor_slices(text_as_int)
+# 스트림에서 흘러나오는 글자들을 101개씩(100+1) 묶음.
+sequences = char_dataset.batch(seq_length+1, drop_remainder=True)
+# 101개짜리 묶음(청크)마다 앞서 정의한 함수(split_input_target)를 적용
+dataset = sequences.map(split_input_target)
+# 10000분의 1의 확률로 하나씩 뽑아 줄세움(섞는 과정). 이후 batch_size 크기로 묶음.
+dataset = dataset.shuffle(10000).batch(batch_size, drop_remainder=True)
+
+class RNN(tf.keras.Model):
+    def __init__(self, batch_size):
+        super(RNN, self).__init__()
+        # 입력값을 의미를 갖는 벡터 형태로 변경.
+        self.embedding_layer = tf.keras.layers.Embedding(voca_size, embedding_dim)
+        # RNN 수행
+        self.hidden_layer_1 = tf.keras.layers.LSTM(hidden_size, return_sequences=True, stateful=True, recurrent_initializer='glorot_uniform')
+        # 추상화
+        self.output_layer = tf.keras.layers.Dense(voca_size)
+
+    def call(self, x):
+        embedded_input = self.embedding_layer(x)
+        features = self.hidden_layer_1(embedded_input)
+        logits = self.output_layer(features)
+        return logits
+
+def sparse_cross_entropy_loss(labels, logits):
+    #이 때 labels는 one-hot encoding이 아님. Integer encoding이며, sparse_categorical_crossentropy가 one-hot encoding을 해줌.
+    return tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(labels, logits, from_logits=True))
+
+optimizer = tf.keras.optimizers.Adam()
+
+@tf.function
+def train_step(model, inputs, targets):
+    with tf.GradientTape() as tape:
+        logits = model(inputs)
+        loss = sparse_cross_entropy_loss(targets, logits)
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return loss
+
+def generate_text(model, start_string):
+    # 생성할 character의 수.
+    num_sampling = 4000
+
+    # start_string을 integer 형태로 변환.
+    input_eval = [char2idx[s] for s in start_string]
+    input_eval = tf.expand_dims(input_eval, 0)
+
+    # 생성된 string을 저장할 배열 초기화
+    text_generated = []
+
+    # temperature가 높으면 더욱 다양한 텍스트를, 낮으면 더욱 정확한 텍스트를 생성함.
+    temperature = 1.0
+
+    model.hidden_layer_1.reset_states()
+    for i in range(num_sampling):
+        predictions = model(input_eval)
+        predictions = tf.squeeze(predictions, 0)
+
+        predictions = predictions / temperature
+        predicted_id = tf.random.categorical(predictions, num_samples=1)[-1, 0].numpy()
+
+        input_eval = tf.expand_dims([predicted_id], 0)
+        text_generated.append(idx2char[predicted_id])
+
+    return (start_string + "".join(text_generated))
+
+def main(_):
+    RNN_model = RNN(batch_size=batch_size)
+
+    # 하나의 데이터를 뽑아서 데이터의 문제 여부를 확인. sanity check.
+    for input_example_batch, target_example_batch in dataset.take(1):
+        example_batch_predictions = RNN_model(input_example_batch)
+        print(example_batch_predictions.shape, "# (batch_size, sequence_length, vocab_size)")
+
+    # 모델 정보 출력
+    RNN_model.summary()
+
+    checkpoint_dir = './training_checkpoints'
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}.weights.h5")
+
+    for epoch in range(num_epochs):
+        start = time.time()
+        hidden = RNN_model.hidden_layer_1.reset_states()
+        for (batch_n, (input, target)) in enumerate(dataset):
+            loss = train_step(RNN_model, input, target)
+            if batch_n % 100 == 0:
+                template = "Epoch {}, Batch {}, Loss: {:.4f}"
+                print(template.format(epoch + 1, batch_n, loss))
+        if(epoch+1) % 5 == 0:
+            RNN_model.save_weights(checkpoint_prefix.format(epoch=epoch))
+
+        print("Epoch {}, Loss: {:.4f}".format(epoch + 1, loss))
+        print("Time taken for 1 epoch {} sec\n".format(time.time() - start))
+
+    last_checkpoint_path = checkpoint_prefix.format(epoch=epoch)
+    RNN_model.save_weights(last_checkpoint_path)
+    print("트레이닝이 끝났습니다.")
+
+    sampling_RNN_model = RNN(batch_size=1)
+    sampling_RNN_model.build(tf.TensorShape([1, None]))
+    last_checkpoint_path = checkpoint_prefix.format(epoch=epoch)
+    sampling_RNN_model.load_weights(last_checkpoint_path)
+    sampling_RNN_model.summary()
+
+    print("샘플링을 시작합니다.")
+    print(generate_text(sampling_RNN_model, ' '))
+
+if __name__ == '__main__':
+    app.run(main)
