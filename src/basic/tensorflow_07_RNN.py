@@ -73,9 +73,7 @@ char_dataset = tf.data.Dataset.from_tensor_slices(text_as_int)
 # 스트림에서 흘러나오는 글자들을 101개씩(100+1) 묶음.
 sequences = char_dataset.batch(seq_length+1, drop_remainder=True)
 # 101개짜리 묶음(청크)마다 앞서 정의한 함수(split_input_target)를 적용
-dataset = sequences.map(split_input_target)
-# 10000분의 1의 확률로 하나씩 뽑아 줄세움(섞는 과정). 이후 batch_size 크기로 묶음.
-dataset = dataset.shuffle(10000).batch(batch_size, drop_remainder=True)
+dataset_source = sequences.map(split_input_target)
 
 class RNN(tf.keras.Model):
     def __init__(self, batch_size):
@@ -133,13 +131,16 @@ def generate_text(model, start_string):
         input_eval = tf.expand_dims([predicted_id], 0)
         text_generated.append(idx2char[predicted_id])
 
+    file = open("sampling_rnn_result.txt", "w")
+    file.write(start_string + "".join(text_generated))
+    file.close()
     return (start_string + "".join(text_generated))
 
 def main(_):
     RNN_model = RNN(batch_size=batch_size)
 
     # 하나의 데이터를 뽑아서 데이터의 문제 여부를 확인. sanity check.
-    for input_example_batch, target_example_batch in dataset.take(1):
+    for input_example_batch, target_example_batch in dataset_source.batch(batch_size).take(1):
         example_batch_predictions = RNN_model(input_example_batch)
         print(example_batch_predictions.shape, "# (batch_size, sequence_length, vocab_size)")
 
@@ -151,8 +152,10 @@ def main(_):
 
     for epoch in range(num_epochs):
         start = time.time()
+        # 10000분의 1의 확률로 하나씩 뽑아 줄세움(섞는 과정). 이후 batch_size 크기로 묶음.
+        epoch_dataset = dataset_source.shuffle(10000).batch(batch_size, drop_remainder=True)
         hidden = RNN_model.hidden_layer_1.reset_states()
-        for (batch_n, (input, target)) in enumerate(dataset):
+        for (batch_n, (input, target)) in enumerate(epoch_dataset):
             loss = train_step(RNN_model, input, target)
             if batch_n % 100 == 0:
                 template = "Epoch {}, Batch {}, Loss: {:.4f}"
@@ -167,14 +170,24 @@ def main(_):
     RNN_model.save_weights(last_checkpoint_path)
     print("트레이닝이 끝났습니다.")
 
+    # 1. 샘플링용 모델 생성 (배치 사이즈 1)
     sampling_RNN_model = RNN(batch_size=1)
-    sampling_RNN_model.build(tf.TensorShape([1, None]))
-    last_checkpoint_path = checkpoint_prefix.format(epoch=epoch)
+
+    # 2. [핵심] build() 대신 가짜 데이터를 한 번 흘려보내서 '진짜' 빌드를 합니다.
+    # 이렇게 하면 내부 레이어들이 가중치를 받을 준비를 완벽히 마칩니다.
+    dummy_input = tf.ones((1, 1), dtype=tf.int64)
+    sampling_RNN_model(dummy_input)
+
+    # 3. 이제 가중치를 로드합니다. (경로 재확인)
+    last_checkpoint_path = checkpoint_prefix.format(epoch=num_epochs - 1)
     sampling_RNN_model.load_weights(last_checkpoint_path)
+
+    # 4. 제대로 로드되었는지 파라미터 수를 확인합니다. (0이 아니어야 함)
     sampling_RNN_model.summary()
 
     print("샘플링을 시작합니다.")
-    print(generate_text(sampling_RNN_model, ' '))
+    # 시작 문구도 공백보다는 셰익스피어 스타일로 주면 좋습니다.
+    print(generate_text(sampling_RNN_model, 'ROMEO: '))
 
 if __name__ == '__main__':
     app.run(main)
