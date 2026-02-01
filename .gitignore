@@ -5,3 +5,5 @@ lib
 *.cfg
 *.png
 *.weights.h5
+model
+tensorboard_logs
