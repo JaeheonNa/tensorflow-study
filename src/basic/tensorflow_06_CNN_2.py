@@ -1,5 +1,5 @@
 # 드롭아웃(Drop out)
-#   오버피팅(overfitting)을 막기 위한 regulization 기법 중 하나.
+#   오버피팅(overfitting)을 막기 위한 regularization 기법 중 하나.
 #   인공 신경막의 각 레이어에서 사용되는 노드들 중 일부를 랜덤으로 작동하지 않도록 하는 기법.
 #   더 적은 노드를 사용하기 때문에 autoEncoder 작용 원리와 같이 데이터의 추상화를 더 강하게 함.
 #   드롭할 노드는 학습 때마다(1 train step마다) 랜덤하게 변경됨.
